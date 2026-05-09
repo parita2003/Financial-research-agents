@@ -1,19 +1,25 @@
 import yfinance as yf
+import time
 from app.config import settings
 
 def run(state: dict) -> dict:
     ticker = state["ticker"]
 
     try:
+        time.sleep(1)  # avoid rate limit
         stock = yf.Ticker(ticker)
         info = stock.info
+
+        # fallback if info is empty
+        if not info or len(info) < 5:
+            raise ValueError("yfinance returned empty data")
 
         financials = {
             "ticker": ticker,
             "company_name": info.get("longName", "N/A"),
             "sector": info.get("sector", "N/A"),
             "market_cap": info.get("marketCap", "N/A"),
-            "current_price": info.get("currentPrice", "N/A"),
+            "current_price": info.get("currentPrice") or info.get("regularMarketPrice", "N/A"),
             "pe_ratio": info.get("trailingPE", "N/A"),
             "eps": info.get("trailingEps", "N/A"),
             "52w_high": info.get("fiftyTwoWeekHigh", "N/A"),
@@ -28,4 +34,5 @@ def run(state: dict) -> dict:
 
     except Exception as e:
         print(f"[financials_agent] error: {e}")
-        return {"financials": {}, "error_msg": str(e)}
+        # return partial data so other agents still run
+        return {"financials": {"ticker": ticker, "error": str(e)}}
